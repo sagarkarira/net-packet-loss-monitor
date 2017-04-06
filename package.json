@@ -1,6 +1,6 @@
 {
-  "name": "netstat",
-  "version": "1.0.0",
+  "name": "packet-loss-monitor",
+  "version": "1.0.1",
   "description": "monitor packet loss of local system",
   "main": "app.js",
   "scripts": {

@@ -5,7 +5,6 @@ const rp = require('request-promise');
 const fs = require('fs');
 const backup = require('./backup.json');
 
-// const LOGGING_API = 'https://prod-analytics.jugnoo.in:8038/saveNetworkStats';
 const NUMBER_OF_REQUESTS = 5	;
 const BACKUP_PATH = './backup.json';
 const LOGGING_API = process.argv[2];
