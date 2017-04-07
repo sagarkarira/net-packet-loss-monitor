@@ -1,3 +1,5 @@
+'use strict';
+const path = require('path');
 const lib = require('../lib/app.js');
 
 lib.main();
