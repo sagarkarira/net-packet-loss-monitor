@@ -1,8 +1,8 @@
 {
   "name": "net-packet-loss-monitor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "monitor packet loss of local system with current access point stats",
-  "main": "./lib/app.js",
+  "main": "lib/app.js",
   "bin" : {
       "nplm" : "bin/net-packet-loss-monitor.js"
   },
