@@ -1,13 +1,14 @@
 {
   "name": "net-packet-loss-monitor",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "monitor packet loss of local system with current access point stats",
-  "main": "lib/app.js",
+  "main": "./lib/app.js",
   "bin" : {
-      "nplm" : "bin/net-packet-loss-monitor.js"
+      "nplm" : "./bin/net-packet-loss-monitor.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+     "start": "node ./bin/net-packet-loss-monitor"
   },
   "keywords": [
     "packet",
