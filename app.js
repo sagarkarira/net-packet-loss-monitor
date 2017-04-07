@@ -1,72 +1,135 @@
+
+/*	
+	Date : 7-4-2017
+	Author : sagar.karira@mail.jugnoo.in	
+*/
+'use strict';
+
 const util = require('util');
 const exec = require('child_process').exec;
 const os = require('os');
 const rp = require('request-promise');
 const fs = require('fs');
 const backup = require('./backup.json');
+const packageInfo = require('./package.json');
 
-const NUMBER_OF_REQUESTS = 5	;
+const GET_CURRENT_WIFI = '/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --getinfo';
+const NUMBER_OF_REQUESTS = 10;
 const BACKUP_PATH = './backup.json';
 const LOGGING_API = process.argv[2];
+const TIMEOUT_INTERVAL = 2; //in minutes
+const SWITCH_API = 
 
-if (!LOGGING_API) {
-	return console.log(`Please enter logging API \n  Example - \n node app.js myapi.com:8081/upload`);
+
+main();
+setInterval(main, TIMEOUT_INTERVAL * 1000 * 60);
+
+function main() {
+	console.log('Logging packet loss');
+	if (!LOGGING_API) {
+		return console.log(`Please enter logging API \n  Example - \n node app.js myapi.com:8081/upload`);	
+		exit(1);
+	}
+
+	exec(`ping -c ${NUMBER_OF_REQUESTS} google.com`, function(err, stdout, stderr) {
+		if (err) {
+			console.log(err);
+		}
+		
+		let logDate = new Date();
+		let hostName = os.hostname();
+		let ipAddress = os.networkInterfaces()['en0'][1].address;
+		
+		let packetLossIndex = stdout.indexOf('packet loss' );
+		let packetTransmittedIndex = stdout.indexOf('packets transmitted');
+		let packetReceivedIndex = stdout.indexOf('packets received');
+
+
+		let packetLoss = stdout.slice(packetLossIndex-6, packetLossIndex-2);
+		let packetTransmitted = stdout.slice(packetTransmittedIndex-3, packetTransmittedIndex);
+		let packetReceived = stdout.slice(packetReceivedIndex-3, packetReceivedIndex);
+
+		let requestBody = {
+			logDate : logDate, 
+			hostName : hostName, 
+			ipAddress : ipAddress, 
+			packetLoss : packetLoss.trim(), 
+			packetTransmitted : packetTransmitted.trim(), 
+			packetReceived : packetReceived.trim(), 
+			requests : NUMBER_OF_REQUESTS, 
+			version : packageInfo.version
+		};
+
+
+		let options = {
+	    	method: 'POST',
+	    	uri: LOGGING_API,
+	    	body: requestBody ,
+	    	json: true 
+		};
+
+		findCurrentWifiStats((err, result)=>{
+			if (err) {
+				console.log(err);
+			}
+			console.log(result);
+			requestBody.ssid = result.ssid;
+			requestBody.bssid = result.mac;
+			requestBody.signal_level = result.signal_level;
+			let options = {
+		    	method: 'POST',
+		    	uri: LOGGING_API,
+		    	body: requestBody ,
+		    	json: true 
+			};
+			console.log(requestBody);
+
+			rp(options).then( (parsedBody) => {
+	        	if (backup.backup.length !== 0) {
+					uploadLocalBackup((err, result)=>{
+						if (err) console.log(err);
+						console.log('Sync to server and cleared locally');
+					});
+	        	}
+	        	console.log('Uploaded to server');
+	    	}).catch( (err) => {
+	    		saveLocalBackup(requestBody, (err, result) => {
+	    			if (err) console.log(err); 
+	    			console.log('Saved backup locally')
+	    		});
+	    	});
+		});
+	});
 }
 
-exec(`ping -c ${NUMBER_OF_REQUESTS} google.com`, function(err, stdout, stderr) {
-	if (err) {
-		console.log(err);
-	}
-	
-	let logDate = new Date();
-	let hostName = os.hostname();
-	let ipAddress = os.networkInterfaces()['en0'][1].address;
-	
-	let packetLossIndex = stdout.indexOf('packet loss' );
-	let packetTransmittedIndex = stdout.indexOf('packets transmitted');
-	let packetReceivedIndex = stdout.indexOf('packets received');
 
+function findCurrentWifiStats(callback) {
 
-	let packetLoss = stdout.slice(packetLossIndex-6, packetLossIndex-2);
-	let packetTransmitted = stdout.slice(packetTransmittedIndex-3, packetTransmittedIndex);
-	let packetReceived = stdout.slice(packetReceivedIndex-3, packetReceivedIndex);
-
-	let requestBody = {
-		logDate : logDate, 
-		hostName : hostName, 
-		ipAddress : ipAddress, 
-		packetLoss : packetLoss.trim(), 
-		packetTransmitted : packetTransmitted.trim(), 
-		packetReceived : packetReceived.trim(), 
-		requests : NUMBER_OF_REQUESTS
-	};
-
-	console.log(requestBody);
-
-	let options = {
-    	method: 'POST',
-    	uri: LOGGING_API,
-    	body: requestBody ,
-    	json: true 
-	};
-
-	rp(options).then( (parsedBody) => {
-        if (backup.backup.length !== 0) {
-			uploadLocalBackup((err, result)=>{
-				if (err) console.log(err);
-				console.log('Sync to server and cleared locally');
-
-			});
-        }
-    }).catch( (err) =>  {
-    	saveLocalBackup(requestBody, (err, result) => {
-    		if (err) console.log(err); 
-    		console.log('Saved backup locally')
-    	});
-    });
-
-
-});
+	exec(GET_CURRENT_WIFI, (err, stdout, stderr)=>{
+		if (err) {
+			return callback(err);
+		}
+		let lines = stdout.split('\n');
+	    let connections = [];
+	    let connection = {};
+	    lines.forEach(function (line) {
+	        if (line.match(/[ ]*agrCtlRSSI: (.*)/)) {
+	            connection.signal_level = parseInt(line.match(/[ ]*agrCtlRSSI: (.*)/)[1]);
+	        } else if (line.match(/[ ]*BSSID: ([a-zA-Z0-1:]*)/)) {
+	            connection.mac = line.match(/[ ]*BSSID: ([0-9A-Fa-f:]*)/)[1];
+	        } else if (line.match(/[ ]*SSID: (.*)/)) {
+	            connection.ssid = line.match(/[ ]*SSID: (.*)/)[1];
+	        } else if (line.match(/[ ]*link auth: (.*)/)) {
+	            connection.security = line.match(/[ ]*link auth: (.*)/)[1];
+	        } else if (line.match(/[ ]*channel: (.*),(.*)/)) {
+	            connection.frequency = parseInt(networkUtils.frequencyFromChannel(parseInt(line.match(/[ ]*channel: (.*),(.*)/)[1])));
+	            connections.push(connection);
+	            connection = {};
+	        }
+	    });
+	   	return callback(null, connection);
+	});
+}
 
 function uploadLocalBackup(callback) {
 	let backupData = backup.backup;
